@@ -9,12 +9,6 @@ import (
 )
 
 func main() {
-	args := os.Args[1:]
-
-	if len(args) != 2 {
-		fmt.Println("Incorrect number of args")
-		os.Exit(1)
-	}
 	mirrorCmd := flag.NewFlagSet("mirror", flag.ExitOnError)
 	fromNICName := mirrorCmd.String("from", "", "interface-name")
 	toNICName := mirrorCmd.String("to", "", "interface-name")
