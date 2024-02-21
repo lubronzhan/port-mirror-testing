@@ -102,7 +102,7 @@ func main() {
 		Actions: []netlink.Action{
 			&netlink.MirredAction{
 				ActionAttrs: netlink.ActionAttrs{
-					Action: netlink.TC_ACT_STOLEN,
+					Action: netlink.TC_ACT_PIPE,
 				},
 				MirredAction: netlink.TCA_EGRESS_MIRROR,
 				Ifindex:      index2,
