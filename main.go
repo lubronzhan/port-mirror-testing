@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strconv"
 
 	"github.com/vishvananda/netlink"
 
@@ -17,33 +16,46 @@ func main() {
 		fmt.Println("Incorrect number of args")
 		os.Exit(1)
 	}
+	// name of nic which traffic will be mirrored from
+	fromNICName := args[0]
+	fromNIC, err := netlink.LinkByName(fromNICName)
+	if err != nil {
+		fmt.Printf("Failed to find nic %s: %v", fromNICName, err)
+		os.Exit(1)
+	}
+	fromNICID := fromNIC.Attrs().Index
 
-	// index of nic which will be mirrored from
-	index1, _ := strconv.Atoi(args[0])
-	// index of nic which will be mirrored to
-	index2, _ := strconv.Atoi(args[1])
+	// name of nic which traffic will be mirrored to
+	toNICName := args[1]
+	toNIC, err := netlink.LinkByName(toNICName)
+	if err != nil {
+		fmt.Printf("Failed to find nic %s: %v", toNICName, err)
+		os.Exit(1)
+	}
+	toNICID := toNIC.Attrs().Index
 
-	fmt.Printf("network index1 : %d\n", index1)
-	fmt.Printf("network index2 : %d\n", index2)
+	fmt.Printf("traffic will be mirrored from interface %s to interface %s\n", fromNICName, toNICName)
+	fmt.Printf("interface %s has index %d\n", fromNICName, fromNICID)
+	fmt.Printf("interface %s has index %d\n", toNICName, toNICID)
 
-	fmt.Println("step 1: tc qdisc add dev vnet1 ingress")
+	fmt.Printf("step 1: tc qdisc add dev %s ingress\n", fromNICName)
 	qdisc1 := &netlink.Ingress{
 		QdiscAttrs: netlink.QdiscAttrs{
-			LinkIndex: index1,
+			LinkIndex: fromNICID,
 			Parent:    netlink.HANDLE_INGRESS,
 		},
 	}
 
 	if err := netlink.QdiscAdd(qdisc1); err != nil {
-		fmt.Printf("Failed to add qdisc for index %d : %s", index1, err)
+		fmt.Printf("Failed to add qdisc for index %d : %v", fromNICID, err)
 		os.Exit(1)
 	}
 
-	fmt.Println("step 2: tc filter add dev vnet1 parent ffff: protocol ip u32 match u8 0 0 action mirred egress mirror dev vnet0")
+	fmt.Printf("step 2: tc filter add dev %s parent ffff: protocol ip u32 match u8 0 0 action mirred egress mirror dev %s\n", fromNICName, toNICName)
 	// add a filter to mirror traffic from index1 to index2
 	filter1 := &netlink.U32{
 		FilterAttrs: netlink.FilterAttrs{
-			LinkIndex: index1,
+			LinkIndex: fromNICID,
 			Parent:    netlink.MakeHandle(0xffff, 0),
 			Protocol:  unix.ETH_P_ALL,
 		},
@@ -53,19 +65,19 @@ func main() {
 					Action: netlink.TC_ACT_PIPE,
 				},
 				MirredAction: netlink.TCA_EGRESS_MIRROR,
-				Ifindex:      index2,
+				Ifindex:      toNICID,
 			},
 		},
 	}
 
 	if err := netlink.FilterAdd(filter1); err != nil {
-		fmt.Printf("Failed to add filter for index %d: %v", index1, err)
+		fmt.Printf("Failed to add filter for index %d: %v", fromNICID, err)
 		os.Exit(1)
 	}
 
-	fmt.Println("step 3: tc qdisc add dev vnet1 ingress")
+	fmt.Printf("step 3: tc qdisc add dev %s ingress\n", fromNICName)
 	qdiscTemp := netlink.NewPrio(netlink.QdiscAttrs{
-		LinkIndex: index1,
+		LinkIndex: fromNICID,
 		Parent:    netlink.HANDLE_ROOT,
 	})
 
@@ -74,11 +86,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("step 4: tc filter add dev vnet1 parent 8002: protocol ip u32 match u8 0 0 action mirred egress mirror dev vnet0")
 	// get id through tc qdisc show dev vnet1
-	qs, err := netlink.QdiscList(&netlink.Ifb{LinkAttrs: netlink.LinkAttrs{Index: index1}})
+	qs, err := netlink.QdiscList(&netlink.Ifb{LinkAttrs: netlink.LinkAttrs{Index: fromNICID}})
 	if err != nil {
-		fmt.Printf("Failed to list qdisc for interface index %d: %v", index1, err)
+		fmt.Printf("Failed to list qdisc for interface index %d: %v", fromNICID, err)
 		os.Exit(1)
 	}
 	var qdiscID uint32
@@ -89,13 +100,15 @@ func main() {
 		}
 	}
 	if qdiscID == 0 {
-		fmt.Printf("no qdisc under index %d is prio type: %v", index1, err)
+		fmt.Printf("no qdisc under index %d is prio type: %v", fromNICID, err)
 		os.Exit(1)
 	}
 
+	fmt.Printf("step 4: tc filter add dev %s parent %d: protocol ip u32 match u8 0 0 action mirred egress mirror dev %s\n", fromNICName, qdiscID, toNICName)
+
 	filter2 := &netlink.U32{
 		FilterAttrs: netlink.FilterAttrs{
-			LinkIndex: index1,
+			LinkIndex: fromNICID,
 			Parent:    netlink.MakeHandle(uint16(qdiscID), 0),
 			Protocol:  unix.ETH_P_ALL,
 		},
@@ -105,15 +118,15 @@ func main() {
 					Action: netlink.TC_ACT_PIPE,
 				},
 				MirredAction: netlink.TCA_EGRESS_MIRROR,
-				Ifindex:      index2,
+				Ifindex:      toNICID,
 			},
 		},
 	}
 
 	if err := netlink.FilterAdd(filter2); err != nil {
-		fmt.Printf("Failed to add filter for index %d: %v", index1, err)
+		fmt.Printf("Failed to add filter for index %d: %v", fromNICID, err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("That's it! Now try to tcpdump on your interface %d, and try send request to process through interface %d's ip\n", index2, index1)
+	fmt.Printf("That's it! Now try to tcpdump on your interface %s, and try send request to process through interface %s's ip\n", toNICName, fromNICName)
 }
