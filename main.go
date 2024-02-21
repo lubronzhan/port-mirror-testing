@@ -30,7 +30,7 @@ func main() {
 	qdisc1 := &netlink.Ingress{
 		QdiscAttrs: netlink.QdiscAttrs{
 			LinkIndex: index1,
-			Parent:    netlink.HANDLE_INGRESS,
+			Parent:    netlink.HANDLE_ROOT,
 		},
 	}
 
