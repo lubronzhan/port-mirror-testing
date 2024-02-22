@@ -11,14 +11,14 @@ func MirrorTrafficFromNIC(fromNICName, toNICName string) error {
 	// name of nic which traffic will be mirrored from
 	fromNIC, err := netlink.LinkByName(fromNICName)
 	if err != nil {
-		return fmt.Errorf("Failed to find nic %s: %v", fromNICName, err)
+		return fmt.Errorf("failed to find nic %s: %v", fromNICName, err)
 	}
 	fromNICID := fromNIC.Attrs().Index
 
 	// name of nic which traffic will be mirrored to
 	toNIC, err := netlink.LinkByName(toNICName)
 	if err != nil {
-		return fmt.Errorf("Failed to find nic %s: %v", toNICName, err)
+		return fmt.Errorf("failed to find nic %s: %v", toNICName, err)
 	}
 	toNICID := toNIC.Attrs().Index
 
@@ -34,7 +34,7 @@ func MirrorTrafficFromNIC(fromNICName, toNICName string) error {
 	}
 
 	if err := netlink.QdiscAdd(qdisc1); err != nil {
-		return fmt.Errorf("Failed to add qdisc for index %d : %v", fromNICID, err)
+		return fmt.Errorf("failed to add qdisc for index %d : %v", fromNICID, err)
 	}
 
 	fmt.Printf("step 2: tc filter add dev %s parent ffff: protocol ip u32 match u8 0 0 action mirred egress mirror dev %s\n", fromNICName, toNICName)
@@ -57,7 +57,7 @@ func MirrorTrafficFromNIC(fromNICName, toNICName string) error {
 	}
 
 	if err := netlink.FilterAdd(filter1); err != nil {
-		return fmt.Errorf("Failed to add filter for index %d: %v", fromNICID, err)
+		return fmt.Errorf("failed to add filter for index %d: %v", fromNICID, err)
 	}
 
 	fmt.Printf("step 3: tc qdisc add dev %s ingress\n", fromNICName)
@@ -67,7 +67,7 @@ func MirrorTrafficFromNIC(fromNICName, toNICName string) error {
 	})
 
 	if err := netlink.QdiscReplace(qdiscTemp); err != nil {
-		return fmt.Errorf("Failed to replace qdisc with prio type qdisc: %v", err)
+		return fmt.Errorf("failed to replace qdisc with prio type qdisc: %v", err)
 	}
 
 	// get id through tc qdisc show dev vnet1
@@ -107,7 +107,7 @@ func MirrorTrafficFromNIC(fromNICName, toNICName string) error {
 	}
 
 	if err := netlink.FilterAdd(filter2); err != nil {
-		return fmt.Errorf("Failed to add filter for index %d: %v", fromNICID, err)
+		return fmt.Errorf("failed to add filter for index %d: %v", fromNICID, err)
 	}
 
 	fmt.Printf("That's it! Now try to tcpdump on your interface %s, and try send request to process through interface %s's ip\n", toNICName, fromNICName)
@@ -118,7 +118,7 @@ func CleanupQDSICFromNIC(nicName string) error {
 	// name of nic which traffic will be mirrored to
 	toNIC, err := netlink.LinkByName(nicName)
 	if err != nil {
-		return fmt.Errorf("Failed to find nic %s: %v", nicName, err)
+		return fmt.Errorf("failed to find nic %s: %v", nicName, err)
 	}
 	nicID := toNIC.Attrs().Index
 
@@ -135,7 +135,7 @@ func CleanupQDSICFromNIC(nicName string) error {
 		return err
 	}
 
-	fmt.Println("step 1: delete root qdisc")
+	fmt.Println("step 2: delete root qdisc")
 	qdiscRoot := netlink.NewPrio(netlink.QdiscAttrs{
 		LinkIndex: nicID,
 		Parent:    netlink.HANDLE_ROOT,
